@@ -1,0 +1,50 @@
+services:
+  # 1. Django Web Service
+  web:
+    build: .  # Build from the Dockerfile in this folder
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"  # Map your local port 8000 to container's 8000
+    volumes:
+      - .:/app  # Add this to sync code changes for development
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    environment:
+      - INTERNAL_HOST=web
+    restart: unless-stopped
+
+  # 2. Celery Worker Service
+  worker:
+    build: .
+    command: celery -A core worker -l info -Q email,push
+    volumes:
+      - .:/app  # Add this to sync code changes
+    depends_on:
+      - web
+      - rabbitmq
+    environment:
+      - INTERNAL_HOST=web
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+    restart: unless-stopped
+
+  # 3. RabbitMQ Service
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"  # RabbitMQ management UI
+    restart: unless-stopped
+
+  # 4. Redis Service
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # 5. Database Service (SQLite)
+  db:
+    image: busybox
+    volumes:
+      - ./db.sqlite3:/usr/src/app/db.sqlite3

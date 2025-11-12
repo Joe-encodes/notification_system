@@ -1,0 +1,67 @@
+# ----------------------------------------------------------------------
+# 1. Operating System and Editor Files
+# ----------------------------------------------------------------------
+.DS_Store
+.vscode/
+.idea/
+
+*.swp
+
+# ----------------------------------------------------------------------
+# 2. Python / Virtual Environment
+# ----------------------------------------------------------------------
+# Virtual environment directory
+venv/
+env/
+
+# Byte-code files
+*.pyc
+__pycache__/
+*.$py.class
+
+# Pip files
+pip-log.txt
+pip-delete-this-file.txt
+
+# ----------------------------------------------------------------------
+# 3. Django Specific Files
+# ----------------------------------------------------------------------
+# The database file (SQLite)
+db.sqlite3
+*.log
+
+# Media and static files uploaded by users or collected
+/media/
+/static/
+/staticfiles/
+
+# Django secret key file (if stored separately)
+secret_key.txt
+
+# ----------------------------------------------------------------------
+# 4. Environment Variables and Secrets
+# ----------------------------------------------------------------------
+# CRITICAL: Never commit your secrets file!
+.env
+.env.local
+.env.production
+
+# ----------------------------------------------------------------------
+# 5. Docker and Deployment
+# ----------------------------------------------------------------------
+# Docker build context files
+*.dockerignore
+
+# Docker volumes/data (if not using named volumes)
+/data/
+/tmp/
+
+# ----------------------------------------------------------------------
+# 6. Celery and Redis Files
+# ----------------------------------------------------------------------
+# Celery PID files
+celerybeat.pid
+celeryd.pid
+
+# Redis dump file (if configured to save data)
+dump.rdb

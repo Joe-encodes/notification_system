@@ -3,6 +3,8 @@ Django==5.2.8
 djangorestframework==3.16.1
 django-cors-headers==4.3.1
 django-environ==0.11.2
+djangorestframework-simplejwt==5.5.1
+django-filter==23.2
 
 # Message Queue
 celery==5.5.3

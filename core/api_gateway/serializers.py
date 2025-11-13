@@ -1,26 +1,55 @@
 from rest_framework import serializers
 
-class NotificationRequestSerializer(serializers.Serializer):
-    # This is NOT a ModelSerializer because it doesn't map to a DB table.
-    # It's a simple Serializer used purely for input validation.
-    user_id = serializers.CharField(max_length=255)
-    template_code = serializers.CharField(max_length=100)
+class NotificationStatusSerializer(serializers.Serializer):
+    """
+    Serializer for notification status updates.
+    POST /api/v1/notifications/{notification_type}/status/
+    {
+        notification_id: str,
+        status: NotificationStatus,
+        timestamp: Optional[datetime],
+        error: Optional[str]
+    }
+    """
+    notification_id = serializers.CharField(max_length=255, required=True)
+    status = serializers.ChoiceField(
+        choices=['delivered', 'pending', 'failed'],
+        required=True
+    )
+    timestamp = serializers.DateTimeField(required=False)
+    error = serializers.CharField(required=False, allow_blank=True)
 
-    # Optional: allows the user to specify if they only want email or push
+class NotificationRequestSerializer(serializers.Serializer):
+    """
+    Serializer for notification requests matching the task specification.
+    Request format:
+    {
+        notification_type: NotificationType,
+        user_id: uuid,
+        template_code: str | path,
+        variables: UserData,
+        request_id: str,
+        priority: int,
+        metadata: Optional[dict]
+    }
+    """
     notification_type = serializers.ChoiceField(
         choices=['email', 'push'],
-        required=False
+        required=True
     )
-    template_data = serializers.JSONField(required=False, default=dict)
+    user_id = serializers.UUIDField(required=True)
+    template_code = serializers.CharField(max_length=100, required=True)
+    variables = serializers.JSONField(required=True)
+    request_id = serializers.CharField(max_length=255, required=False)
+    priority = serializers.IntegerField(default=0, required=False)
+    metadata = serializers.JSONField(required=False, default=dict)
 
-    # Optional: Key to prevent duplicate requests
-    idempotency_key = serializers.CharField(max_length=255, required=False)
-
-
-def validate(self, data):
-        # Custom validation logic goes here (e.g., ensuring template_data is a dict)
-        if 'template_data' in data and not isinstance(data['template_data'], dict):
-            raise serializers.ValidationError("template_data must be a dictionary.")
+    def validate(self, data):
+        """Custom validation logic"""
+        if 'variables' in data and not isinstance(data['variables'], dict):
+            raise serializers.ValidationError("variables must be a dictionary.")
+        if 'metadata' in data and not isinstance(data['metadata'], dict):
+            raise serializers.ValidationError("metadata must be a dictionary.")
         return data
 
 

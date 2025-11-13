@@ -10,22 +10,30 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables
+env = environ.Env(
+    DJANGO_DEBUG=(bool, True)
+)
+environ.Env.read_env(os.path.join(BASE_DIR.parent, '.env')) if (BASE_DIR.parent / '.env').exists() else None
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-*ou-1((ugl&ka#16im*_n6&qd&@vom2=+7$am8!4j49ap#ilpe'
+SECRET_KEY = env('DJANGO_SECRET_KEY', default='django-insecure-*ou-1((ugl&ka#16im*_n6&qd&@vom2=+7$am8!4j49ap#ilpe')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=[])
 
 
 # Application definition
@@ -77,10 +85,10 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': env.db(
+        'DATABASE_URL',
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+    )
 }
 
 
@@ -126,8 +134,35 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Celery configuration
-CELERY_BROKER_URL = 'amqp://localhost'  # This tells Celery to use RabbitMQ (running locally)
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # This tells Celery to use Redis for storing results
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='amqp://guest:guest@localhost:5672//')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+# RabbitMQ configuration
+RABBITMQ_HOST = env('RABBITMQ_HOST', default='localhost')
+RABBITMQ_PORT = env.int('RABBITMQ_PORT', default=5672)
+RABBITMQ_USERNAME = env('RABBITMQ_USERNAME', default='guest')
+RABBITMQ_PASSWORD = env('RABBITMQ_PASSWORD', default='guest')
+RABBITMQ_VHOST = env('RABBITMQ_VHOST', default='/')
+RABBITMQ_USE_SSL = env.bool('RABBITMQ_USE_SSL', default=False)
+
+# Redis configuration
+REDIS_HOST = env('REDIS_HOST', default='localhost')
+REDIS_PORT = env.int('REDIS_PORT', default=6379)
+REDIS_DB = env.int('REDIS_DB', default=0)
+
+# Email configuration
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@example.com')
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+
+# Push notification configuration (FCM)
+FCM_SERVER_KEY = env('FCM_SERVER_KEY', default=None)
+
+# Internal service communication
+INTERNAL_API_BASE_URL = env('INTERNAL_API_BASE_URL', default='http://localhost:8000/api/v1')
+SERVICE_CLIENT_TIMEOUT = env.int('SERVICE_CLIENT_TIMEOUT', default=5)
+
+# Custom User Model
+AUTH_USER_MODEL = 'user_app.User'

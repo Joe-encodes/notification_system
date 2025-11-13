@@ -4,8 +4,6 @@ import pika
 import os
 import django
 from django.conf import settings
-from django.core.mail import send_mail
-from django.utils.html import strip_tags
 from core.rabbitmq import get_rabbitmq_connection
 from core.circuit_breaker import circuit_breaker
 from core.retry import retry_with_backoff
@@ -15,13 +13,9 @@ from core.service_client import get_user_data, get_template_data
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django.setup()
 
-from django.contrib.auth import get_user_model
-from template_app.models import TemplateModel
-
 logger = logging.getLogger(__name__)
-User = get_user_model()
 
-class EmailConsumer:
+class PushConsumer:
     def __init__(self):
         self.connection = get_rabbitmq_connection()
         self.channel = self.connection.channel()
@@ -35,26 +29,26 @@ class EmailConsumer:
             durable=True
         )
         
-        # Declare the email queue
+        # Declare the push queue
         self.channel.queue_declare(
-            queue='email.queue',
+            queue='push.queue',
             durable=True,
             arguments={
                 'x-dead-letter-exchange': 'notifications.dlx',
-                'x-dead-letter-routing-key': 'email.dlq'
+                'x-dead-letter-routing-key': 'push.dlq'
             }
         )
         
         # Bind the queue to the exchange
         self.channel.queue_bind(
             exchange='notifications.direct',
-            queue='email.queue',
-            routing_key='email'
+            queue='push.queue',
+            routing_key='push'
         )
         
         # Declare DLQ
         self.channel.queue_declare(
-            queue='email.dlq',
+            queue='push.dlq',
             durable=True
         )
         
@@ -63,7 +57,7 @@ class EmailConsumer:
         
         # Set up consumer
         self.channel.basic_consume(
-            queue='email.queue',
+            queue='push.queue',
             on_message_callback=self.process_message,
             auto_ack=False
         )
@@ -75,11 +69,45 @@ class EmailConsumer:
             result = result.replace(f'{{{{{key}}}}}', str(value))
         return result
 
+    def _send_fcm_notification(self, push_token: str, title: str, body: str, data: dict = None):
+        """
+        Send push notification using Firebase Cloud Messaging (FCM).
+        This is a placeholder - you'll need to configure FCM credentials.
+        """
+        try:
+            from pyfcm import FCMNotification
+            
+            # Get FCM server key from settings
+            fcm_server_key = getattr(settings, 'FCM_SERVER_KEY', None)
+            if not fcm_server_key:
+                raise Exception("FCM_SERVER_KEY not configured in settings")
+            
+            push_service = FCMNotification(api_key=fcm_server_key)
+            
+            result = push_service.notify_single_device(
+                registration_id=push_token,
+                message_title=title,
+                message_body=body,
+                data_message=data or {}
+            )
+            
+            logger.info(f"FCM notification sent: {result}")
+            return result
+            
+        except ImportError:
+            logger.warning("pyfcm not installed. Using mock FCM notification.")
+            # Mock implementation for development
+            logger.info(f"Mock FCM: Sending to {push_token} - Title: {title}, Body: {body}")
+            return {'success': True, 'mock': True}
+        except Exception as e:
+            logger.error(f"FCM notification failed: {str(e)}")
+            raise
+
     def process_message(self, ch, method, properties, body):
-        """Process email notification message from queue"""
+        """Process push notification message from queue"""
         try:
             message = json.loads(body)
-            logger.info(f"Processing email message: {message.get('request_id')}")
+            logger.info(f"Processing push message: {message.get('request_id')}")
             
             request_id = message.get('request_id')
             user_id = message.get('user_id')
@@ -92,11 +120,11 @@ class EmailConsumer:
                 raise Exception(f"Failed to fetch user data for {user_id}")
             
             user_info = user_data.get('data', {})
-            user_email = user_info.get('email')
+            push_token = user_info.get('push_token')
             user_language = user_info.get('preferences', {}).get('language', 'en')
             
-            if not user_email:
-                raise Exception(f"User {user_id} has no email address")
+            if not push_token:
+                raise Exception(f"User {user_id} has no push token")
             
             # 2. Fetch template (synchronous REST call)
             template_data = get_template_data(template_code, language=user_language)
@@ -104,12 +132,12 @@ class EmailConsumer:
                 raise Exception(f"Failed to fetch template {template_code}")
             
             template_info = template_data.get('data', {})
-            if template_info.get('notification_type') != 'email':
-                raise Exception(f"Template {template_code} is not an email template")
+            if template_info.get('notification_type') != 'push':
+                raise Exception(f"Template {template_code} is not a push template")
             
-            # 3. Get template content and subject
+            # 3. Get template content and subject (title for push)
             template_content = template_info.get('content', '')
-            template_subject = template_info.get('subject', 'Notification')
+            template_title = template_info.get('subject', 'Notification')
             
             # 4. Merge user data with provided variables
             merged_variables = {
@@ -118,25 +146,30 @@ class EmailConsumer:
             }
             
             # 5. Substitute variables in template
-            email_body = self._substitute_variables(template_content, merged_variables)
-            email_subject = self._substitute_variables(template_subject, merged_variables)
+            push_body = self._substitute_variables(template_content, merged_variables)
+            push_title = self._substitute_variables(template_title, merged_variables)
             
-            # 6. Send email using Django's send_mail
-            send_mail(
-                subject=email_subject,
-                message=strip_tags(email_body),
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com'),
-                recipient_list=[user_email],
-                html_message=email_body,
-                fail_silently=False
+            # 6. Prepare notification data
+            notification_data = {
+                'request_id': request_id,
+                'user_id': user_id,
+                **message.get('metadata', {})
+            }
+            
+            # 7. Send push notification
+            self._send_fcm_notification(
+                push_token=push_token,
+                title=push_title,
+                body=push_body,
+                data=notification_data
             )
             
-            # 7. Acknowledge message
+            # 8. Acknowledge message
             ch.basic_ack(delivery_tag=method.delivery_tag)
-            logger.info(f"Email sent successfully to {user_email} (request_id: {request_id})")
+            logger.info(f"Push notification sent successfully to {user_id} (request_id: {request_id})")
             
         except Exception as e:
-            logger.error(f"Error processing email: {str(e)}")
+            logger.error(f"Error processing push notification: {str(e)}")
             
             # Check if max retries reached
             if method.delivery_info.get('redelivered', False):
@@ -149,7 +182,7 @@ class EmailConsumer:
                 logger.warning(f"Message requeued for retry: {str(e)}")
     
     def start_consuming(self):
-        logger.info("Starting email consumer...")
+        logger.info("Starting push consumer...")
         try:
             self.channel.start_consuming()
         except KeyboardInterrupt:
@@ -160,5 +193,7 @@ class EmailConsumer:
             self.connection.close()
 
 if __name__ == "__main__":
-    consumer = EmailConsumer()
+    consumer = PushConsumer()
     consumer.start_consuming()
+
+

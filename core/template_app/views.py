@@ -22,11 +22,14 @@ class TemplateViewSet(CustomResponseMixin, viewsets.ModelViewSet):
         queryset = TemplateModel.objects.all()
         notification_type = self.request.query_params.get('notification_type')
         is_active = self.request.query_params.get('is_active')
+        language = self.request.query_params.get('language')
 
         if notification_type:
             queryset = queryset.filter(notification_type=notification_type)
         if is_active is not None:
             is_active_bool = is_active.lower() == 'true'
             queryset = queryset.filter(is_active=is_active_bool)
+        if language:
+            queryset = queryset.filter(language=language)
 
         return queryset

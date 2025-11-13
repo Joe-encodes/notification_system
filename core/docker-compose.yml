@@ -1,50 +1,110 @@
+x-django-depends: &django-depends
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_started
+  rabbitmq:
+    condition: service_healthy
+
+x-django-base: &django-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  volumes:
+    - .:/usr/src/app
+  depends_on: *django-depends
+  networks:
+    - notifications
+  restart: unless-stopped
+
 services:
-  # 1. Django Web Service
   web:
-    build: .  # Build from the Dockerfile in this folder
+    <<: *django-base
     command: python manage.py runserver 0.0.0.0:8000
     ports:
-      - "8000:8000"  # Map your local port 8000 to container's 8000
-    volumes:
-      - .:/app  # Add this to sync code changes for development
-    depends_on:
-      - db
-      - redis
-      - rabbitmq
-    environment:
-      - INTERNAL_HOST=web
-    restart: unless-stopped
+      - "8000:8000"
+    env_file:
+      - ./env/.env.web
 
-  # 2. Celery Worker Service
-  worker:
-    build: .
+  celery_worker:
+    <<: *django-base
     command: celery -A core worker -l info -Q email,push
-    volumes:
-      - .:/app  # Add this to sync code changes
-    depends_on:
-      - web
-      - rabbitmq
-    environment:
-      - INTERNAL_HOST=web
-      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
-    restart: unless-stopped
+    env_file:
+      - ./env/.env.worker
 
-  # 3. RabbitMQ Service
+  celery_beat:
+    <<: *django-base
+    command: celery -A core beat -l info
+    env_file:
+      - ./env/.env.worker
+
+  email_consumer:
+    <<: *django-base
+    command: python manage.py run_email_consumer
+    env_file:
+      - ./env/.env.consumer
+
+  push_consumer:
+    <<: *django-base
+    command: python manage.py run_push_consumer
+    env_file:
+      - ./env/.env.consumer
+
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.12-management
+    container_name: notification_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-notification_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-notification_pass}
     ports:
-      - "15672:15672"  # RabbitMQ management UI
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications
     restart: unless-stopped
 
-  # 4. Redis Service
   redis:
     image: redis:7-alpine
+    container_name: notification_redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications
     restart: unless-stopped
 
-  # 5. Database Service (SQLite)
-  db:
-    image: busybox
+  postgres:
+    image: postgres:15-alpine
+    container_name: notification_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-notification_db}
+      POSTGRES_USER: ${POSTGRES_USER:-notification_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notification_pass}
+    ports:
+      - "5432:5432"
     volumes:
-      - ./db.sqlite3:/usr/src/app/db.sqlite3
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  notifications:
+    driver: bridge

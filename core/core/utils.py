@@ -91,3 +91,21 @@ class CustomResponseMixin:
             "has_previous": page.has_previous(),
         }
     
+    def success_response(self, data, message="Operation successful.", http_status=status.HTTP_200_OK):
+        """Helper method for success responses"""
+        return standardized_response(
+            success=True,
+            data=data,
+            message=message,
+            http_status=http_status
+        )
+    
+    def error_response(self, error, message="Operation failed.", http_status=status.HTTP_400_BAD_REQUEST):
+        """Helper method for error responses"""
+        return standardized_response(
+            success=False,
+            error=error,
+            message=message,
+            http_status=http_status
+        )
+    

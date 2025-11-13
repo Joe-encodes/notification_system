@@ -1,6 +1,19 @@
 import redis
+from django.conf import settings
 
-# ... (Redis client initialization code)
+# Initialize Redis client
+try:
+    redis_client = redis.Redis(
+        host=getattr(settings, 'REDIS_HOST', 'localhost'),
+        port=getattr(settings, 'REDIS_PORT', 6379),
+        db=getattr(settings, 'REDIS_DB', 0),
+        decode_responses=True
+    )
+    # Test connection
+    redis_client.ping()
+except Exception as e:
+    print(f"Warning: Redis connection failed: {e}. Idempotency checks will be disabled.")
+    redis_client = None
 
 def check_and_set_idempotency_key(key: str, expiry_seconds: int = 3600) -> bool:
     """

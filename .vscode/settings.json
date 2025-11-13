@@ -1,0 +1,24 @@
+{
+  "terminal.integrated.defaultProfile.windows": "Ubuntu",
+  "terminal.integrated.profiles.windows": {
+    "Ubuntu": {
+      "path": "wsl.exe",
+      "args": ["-d", "Ubuntu"]
+    },
+    "PowerShell": {
+      "source": "PowerShell",
+      "icon": "terminal-powershell"
+    },
+    "Command Prompt": {
+      "path": [
+        "${env:windir}\\Sysnative\\cmd.exe",
+        "${env:windir}\\System32\\cmd.exe"
+      ],
+      "args": [],
+      "icon": "terminal-cmd"
+    }
+  }
+}
+
+
+

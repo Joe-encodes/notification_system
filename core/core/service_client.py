@@ -49,42 +49,52 @@ def record_failure(service_name):
 
 # --- Service Client Functions ---
 
-# Base URL for internal service communication (assuming localhost for tutorial)
-BASE_URL = "http://localhost:8000/api/v1"
+# Base URL for internal service communication
+BASE_URL = getattr(settings, 'INTERNAL_API_BASE_URL', 'http://localhost:8000/api/v1')
+SERVICE_TIMEOUT_SECONDS = getattr(settings, 'SERVICE_CLIENT_TIMEOUT', 5)
 
 def get_user_data(user_id: str) -> dict:
     """Fetches user data from the User Service with Circuit Breaker logic."""
     service_name = 'user_service'
     
     if not check_circuit(service_name):
-        return None # Request blocked by circuit breaker
+        return {'success': False, 'error': 'Circuit breaker is OPEN'} # Request blocked by circuit breaker
     
     url = f"{BASE_URL}/users/{user_id}/"
     
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=SERVICE_TIMEOUT_SECONDS)
         response.raise_for_status() # Raise an error for bad responses
         record_success(service_name)
-        return response.json()
+        result = response.json()
+        # Ensure it follows standardized format
+        if isinstance(result, dict) and 'success' in result:
+            return result
+        return {'success': True, 'data': result}
     
     except requests.exceptions.RequestException as e:
         print(f"Error fetching user data for {user_id}: {e}")
         record_failure(service_name)
-        return None
+        return {'success': False, 'error': str(e)}
     
-def get_template_data(template_code: str):
+def get_template_data(template_code: str, language: str = 'en'):
     """Fetches template data from the Template Service with Circuit Breaker protection."""
     service_name = 'template_service'
     if not check_circuit(service_name):
-        return None # Request blocked by circuit breaker
+        return {'success': False, 'error': 'Circuit breaker is OPEN'} # Request blocked by circuit breaker
 
     url = f"{BASE_URL}/templates/{template_code}/"
+    params = {'language': language} if language else {}
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, params=params, timeout=SERVICE_TIMEOUT_SECONDS)
         response.raise_for_status()
         record_success(service_name)
-        return response.json()
+        result = response.json()
+        # Ensure it follows standardized format
+        if isinstance(result, dict) and 'success' in result:
+            return result
+        return {'success': True, 'data': result}
     except requests.exceptions.RequestException as e:
         print(f"Error fetching template data for {template_code}: {e}")
         record_failure(service_name)
-        return None
+        return {'success': False, 'error': str(e)}

@@ -33,7 +33,27 @@ class PushConsumer:
             durable=True
         )
         
-        # Declare the push queue
+        # Declare Dead Letter Exchange (DLX)
+        self.channel.exchange_declare(
+            exchange='notifications.dlx',
+            exchange_type='direct',
+            durable=True
+        )
+        
+        # Declare DLQ first
+        self.channel.queue_declare(
+            queue='push.dlq',
+            durable=True
+        )
+        
+        # Bind DLQ to DLX
+        self.channel.queue_bind(
+            exchange='notifications.dlx',
+            queue='push.dlq',
+            routing_key='push.dlq'
+        )
+        
+        # Declare the push queue with DLQ configuration
         self.channel.queue_declare(
             queue='push.queue',
             durable=True,
@@ -48,12 +68,6 @@ class PushConsumer:
             exchange='notifications.direct',
             queue='push.queue',
             routing_key='push'
-        )
-        
-        # Declare DLQ
-        self.channel.queue_declare(
-            queue='push.dlq',
-            durable=True
         )
         
         # Set up QoS
@@ -118,8 +132,12 @@ class PushConsumer:
             template_code = message.get('template_code')
             variables = message.get('variables', {})
             
-            # 1. Fetch user data (synchronous REST call)
-            user_data = get_user_data(user_id)
+            # 1. Fetch user data (synchronous REST call with circuit breaker)
+            @retry_with_backoff(retries=3, backoff_in_seconds=1, max_backoff=10)
+            def fetch_user():
+                return get_user_data(user_id)
+            
+            user_data = fetch_user()
             if not user_data or not user_data.get('success'):
                 raise Exception(f"Failed to fetch user data for {user_id}")
             
@@ -130,8 +148,12 @@ class PushConsumer:
             if not push_token:
                 raise Exception(f"User {user_id} has no push token")
             
-            # 2. Fetch template (synchronous REST call)
-            template_data = get_template_data(template_code, language=user_language)
+            # 2. Fetch template (synchronous REST call with circuit breaker)
+            @retry_with_backoff(retries=3, backoff_in_seconds=1, max_backoff=10)
+            def fetch_template():
+                return get_template_data(template_code, language=user_language)
+            
+            template_data = fetch_template()
             if not template_data or not template_data.get('success'):
                 raise Exception(f"Failed to fetch template {template_code}")
             

@@ -88,7 +88,7 @@ def test_celery_task():
     """Test Celery task execution"""
     print_section("Testing Celery Task")
     try:
-        result = debug_task.delay("Hello from test script!")
+        result = debug_task.delay(message="Hello from test script!")
         print(f"✅ Task sent to queue. Task ID: {result.id}")
         print(f"   Check worker logs to see task execution")
         return True

@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from .serializers import NotificationRequestSerializer, NotificationStatusSerializer
 from core.rabbitmq_publisher import publish_notification
 from core.redis_client import check_and_set_idempotency_key, redis_client
@@ -14,6 +15,7 @@ class HealthCheckView(APIView):
     Health check endpoint to monitor service status.
     Checks connectivity to the database and Redis.
     """
+    permission_classes = [AllowAny]
     def get(self, request, *args, **kwargs):
         status_checks = {}
         overall_status = status.HTTP_200_OK
@@ -52,6 +54,8 @@ class HealthCheckView(APIView):
         )
 
 class NotificationAPIView(APIView):
+    permission_classes = [AllowAny]  # Allow unauthenticated for testing
+    
     def post(self, request, *args, **kwargs):
         # 1. Validate incoming data
         serializer = NotificationRequestSerializer(data=request.data)
@@ -114,6 +118,8 @@ class NotificationStatusView(APIView):
         error: Optional[str]
     }
     """
+    permission_classes = [AllowAny]  # Allow unauthenticated for testing
+    
     def post(self, request, notification_type, *args, **kwargs):
         if notification_type not in ['email', 'push']:
             return standardized_response(

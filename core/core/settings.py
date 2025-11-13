@@ -21,14 +21,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(
     DJANGO_DEBUG=(bool, True)
 )
-environ.Env.read_env(os.path.join(BASE_DIR.parent, '.env')) if (BASE_DIR.parent / '.env').exists() else None
+# Try to read .env from parent directory, but don't fail if it doesn't exist
+env_file = BASE_DIR.parent / '.env'
+if env_file.exists():
+    environ.Env.read_env(str(env_file))
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('DJANGO_SECRET_KEY', default='django-insecure-*ou-1((ugl&ka#16im*_n6&qd&@vom2=+7$am8!4j49ap#ilpe')
+# Strip quotes if present (docker-compose may add them)
+secret_key = env('DJANGO_SECRET_KEY', default='django-insecure-*ou-1((ugl&ka#16im*_n6&qd&@vom2=+7$am8!4j49ap#ilpe')
+SECRET_KEY = secret_key.strip("'\"") if isinstance(secret_key, str) else secret_key
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DJANGO_DEBUG')
@@ -56,6 +61,8 @@ INSTALLED_APPS = [
     'user_app.apps.UserAppConfig',
     'template_app.apps.TemplateAppConfig',
     'api_gateway.apps.ApiGatewayConfig',
+    'email_service.apps.EmailServiceConfig',
+    'push_service.apps.PushServiceConfig',
 ]
 
 # Custom user model

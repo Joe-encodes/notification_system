@@ -101,8 +101,6 @@ services:
     networks:
       - notifications
     restart: unless-stopped
-
-    volumes:
   postgres_data:
 
 networks:

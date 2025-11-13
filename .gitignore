@@ -178,3 +178,4 @@ ENV/
 *.key
 *.pem
 *.pfx
+.env*

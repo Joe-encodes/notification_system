@@ -17,9 +17,13 @@ logger = logging.getLogger(__name__)
 
 class PushConsumer:
     def __init__(self):
-        self.connection = get_rabbitmq_connection()
-        self.channel = self.connection.channel()
-        self.setup_queues()
+        try:
+            self.connection = get_rabbitmq_connection()
+            self.channel = self.connection.channel()
+            self.setup_queues()
+        except Exception as e:
+            logger.error(f"Failed to initialize push consumer: {str(e)}")
+            raise
         
     def setup_queues(self):
         # Declare the main exchange

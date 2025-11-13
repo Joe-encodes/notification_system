@@ -31,3 +31,4 @@ def get_rabbitmq_connection():
     )
     
     return pika.BlockingConnection(parameters)
+

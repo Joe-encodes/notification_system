@@ -4,10 +4,10 @@ import pika
 import os
 import django
 from django.conf import settings
-from core.rabbitmq import get_rabbitmq_connection
+from core.core.rabbitmq import get_rabbitmq_connection
 from core.circuit_breaker import circuit_breaker
 from core.retry import retry_with_backoff
-from core.service_client import get_user_data, get_template_data
+from core.core.service_client import get_user_data, get_template_data
 
 # Setup Django environment for standalone consumer
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')

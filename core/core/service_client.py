@@ -2,6 +2,7 @@ import requests
 from django.conf import settings
 from core.utils import standardized_response
 import time
+import os
 
 # --- Circuit Breaker State (Conceptual) ---
 # This is a simple Python dictionary that tracks failures.

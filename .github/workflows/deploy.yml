@@ -110,24 +110,25 @@ jobs:
           docker build -t notification-system:latest .
 
   deploy:
-  name: Deploy to Server
-  runs-on: ubuntu-latest
-  needs: build
-  if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-  environment:
-    name: production
-    url: http://18.170.1.181/
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: http://18.170.1.181/
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-  steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Deploy with PAT
+        env:
+          DEPLOY_PAT: ${{ secrets.DEPLOY_PAT }}
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
 
-    - name: Deploy with PAT
-      env:
-        DEPLOY_PAT: ${{ secrets.DEPLOY_PAT }}
-      run: |
-        git config --global user.name "github-actions"
-        git config --global user.email "actions@github.com"
+          # Pull latest changes
+          git pull https://$DEPLOY_PAT@github.com/Joe-encodes/notification_system.git main
 
-        # Pull latest changes
-        git pull https://$DEPLOY_PAT@github.com/Joe-encodes/notification_system.git main

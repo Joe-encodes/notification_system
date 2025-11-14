@@ -38,7 +38,7 @@ SECRET_KEY = secret_key.strip("'\"") if isinstance(secret_key, str) else secret_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=[])
+ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', "").split(",")
 
 
 # Application definition

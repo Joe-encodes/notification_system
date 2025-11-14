@@ -1,163 +1,115 @@
 #!/bin/bash
-# Comprehensive cURL Test Script for Production System
+# Comprehensive cURL Test Script for Production System (Stage 4)
 # Run this on the server: bash test_curl_commands.sh
 
 BASE_URL="http://18.170.1.181:8000/api/v1"
+ADMIN_TOKEN="6859f491e1d1200e43b7a55fdc0d138d8fd080fe"
+AUTH_HEADER="Authorization: Token $ADMIN_TOKEN"
+CONTENT_TYPE="Content-Type: application/json"
 
 echo "============================================================"
-echo "  PRODUCTION SYSTEM cURL TEST SUITE"
-echo "  Testing: $BASE_URL"
+echo "  PRODUCTION SYSTEM cURL TEST SUITE (AUTH ENABLED)"
+echo "  Testing: $BASE_URL"
+echo "  Using Token: $ADMIN_TOKEN"
 echo "============================================================"
 
-# Test 1: Health Check
-echo -e "\n[Test 1] Health Check Endpoint"
-echo "----------------------------------------"
-curl -X GET "$BASE_URL/health/" \
-  -H "Content-Type: application/json" \
-  -w "\nHTTP Status: %{http_code}\n" \
-  -s | python3 -m json.tool || echo "Failed"
+# Helper function for pretty printing and status check
+function run_curl_test() {
+  local METHOD=$1
+  local ENDPOINT=$2
+  local DATA=$3
+  local NAME=$4
+  local AUTH=$5
 
-# Test 2: Get Users List
-echo -e "\n[Test 2] User Service - List Users"
-echo "----------------------------------------"
-curl -X GET "$BASE_URL/users/" \
-  -H "Content-Type: application/json" \
-  -w "\nHTTP Status: %{http_code}\n" \
-  -s | python3 -m json.tool || echo "Failed"
+  echo -e "\n[$NAME] $METHOD $ENDPOINT"
+  echo "----------------------------------------"
+  
+  HEADERS=("$CONTENT_TYPE")
+  if [ "$AUTH" == "true" ]; then
+      HEADERS+=("$AUTH_HEADER")
+  fi
 
-# Test 3: Get Templates List
-echo -e "\n[Test 3] Template Service - List Templates"
-echo "----------------------------------------"
-curl -X GET "$BASE_URL/templates/" \
-  -H "Content-Type: application/json" \
-  -w "\nHTTP Status: %{http_code}\n" \
-  -s | python3 -m json.tool || echo "Failed"
+  if [ -z "$DATA" ]; then
+    curl -X $METHOD "$BASE_URL$ENDPOINT" \
+      -H "${HEADERS[@]}" \
+      -w "\nHTTP Status: %{http_code}\n" \
+      -s | python3 -m json.tool || echo "Failed"
+  else
+    curl -X $METHOD "$BASE_URL$ENDPOINT" \
+      -H "${HEADERS[@]}" \
+      -d "$DATA" \
+      -w "\nHTTP Status: %{http_code}\n" \
+      -s | python3 -m json.tool || echo "Failed"
+  fi
+}
 
-# Test 4: Create User (if needed)
-echo -e "\n[Test 4] Create Test User"
-echo "----------------------------------------"
+# --- UNPROTECTED ENDPOINT ---
+run_curl_test "GET" "/health/" "" "Test 1: Health Check" "false"
+
+# --- PROTECTED ENDPOINTS (Requires Token) ---
+run_curl_test "GET" "/users/" "" "Test 2: User Service - List Users" "true"
+run_curl_test "GET" "/templates/" "" "Test 3: Template Service - List Templates" "true"
+
+# Test 4: Create User (Requires you to change the email if it exists)
 USER_PAYLOAD='{
-  "email": "test@example.com",
-  "password": "testpass123",
-  "first_name": "Test",
-  "last_name": "User",
-  "push_token": "test_token_12345",
-  "preferences": {
-    "email": true,
-    "push": true
-  }
+  "email": "curl_test_user@example.com",
+  "password": "testpass123",
+  "first_name": "Curl",
+  "last_name": "Test",
+  "push_token": "curl_token_12345",
+  "preferences": {
+    "email": true,
+    "push": true
+  }
 }'
-curl -X POST "$BASE_URL/users/" \
-  -H "Content-Type: application/json" \
-  -d "$USER_PAYLOAD" \
-  -w "\nHTTP Status: %{http_code}\n" \
-  -s | python3 -m json.tool || echo "Failed"
+run_curl_test "POST" "/users/" "$USER_PAYLOAD" "Test 4: Create New Test User" "true"
 
-# Test 5: Get User by ID (you'll need to replace USER_ID)
-echo -e "\n[Test 5] Get User by ID"
-echo "----------------------------------------"
-echo "Note: Replace USER_ID with actual user ID from Test 4"
-# curl -X GET "$BASE_URL/users/USER_ID/" \
-#   -H "Content-Type: application/json" \
-#   -w "\nHTTP Status: %{http_code}\n" \
-#   -s | python3 -m json.tool || echo "Failed"
+# You would extract the USER_ID here for the next tests.
+# For demonstration, we'll use the user created by the Python script (test@example.com)
+# NOTE: Replace 'USER_ID_FROM_DB' with the actual UUID of test@example.com
+DUMMY_USER_ID="USER_ID_FROM_DB"
+REQUEST_ID_BASE="test-curl-$(date +%s)"
 
-# Test 6: Email Notification
-echo -e "\n[Test 6] Send Email Notification"
-echo "----------------------------------------"
+# Test 5: Send Email Notification
 EMAIL_PAYLOAD='{
-  "notification_type": "email",
-  "user_id": "REPLACE_WITH_USER_ID",
-  "template_code": "welcome_email",
-  "variables": {
-    "name": "Test User",
-    "link": "https://example.com/welcome"
-  },
-  "request_id": "test-email-'$(date +%s)'",
-  "priority": 1
+  "notification_type": "email",
+  "user_id": "'"$DUMMY_USER_ID"'",
+  "template_code": "welcome_email",
+  "variables": {
+    "name": "Curl Test User",
+    "link": "https://example.com/welcome"
+  },
+  "request_id": "'"$REQUEST_ID_BASE"'-email",
+  "priority": 1
 }'
-echo "Note: Replace REPLACE_WITH_USER_ID with actual user ID"
-# curl -X POST "$BASE_URL/notifications/" \
-#   -H "Content-Type: application/json" \
-#   -d "$EMAIL_PAYLOAD" \
-#   -w "\nHTTP Status: %{http_code}\n" \
-#   -s | python3 -m json.tool || echo "Failed"
+run_curl_test "POST" "/notifications/" "$EMAIL_PAYLOAD" "Test 5: Send Email Notification (Queueing)" "true"
 
-# Test 7: Push Notification
-echo -e "\n[Test 7] Send Push Notification"
-echo "----------------------------------------"
-PUSH_PAYLOAD='{
-  "notification_type": "push",
-  "user_id": "REPLACE_WITH_USER_ID",
-  "template_code": "welcome_email",
-  "variables": {
-    "name": "Test User",
-    "link": "https://example.com/welcome"
-  },
-  "request_id": "test-push-'$(date +%s)'",
-  "priority": 1
-}'
-echo "Note: Replace REPLACE_WITH_USER_ID with actual user ID"
-# curl -X POST "$BASE_URL/notifications/" \
-#   -H "Content-Type: application/json" \
-#   -d "$PUSH_PAYLOAD" \
-#   -w "\nHTTP Status: %{http_code}\n" \
-#   -s | python3 -m json.tool || echo "Failed"
-
-# Test 8: Idempotency Test
-echo -e "\n[Test 8] Idempotency Test (Duplicate Request)"
-echo "----------------------------------------"
+# Test 6: Idempotency Test (Duplicate Request)
 IDEMPOTENT_PAYLOAD='{
-  "notification_type": "email",
-  "user_id": "REPLACE_WITH_USER_ID",
-  "template_code": "welcome_email",
-  "variables": {
-    "name": "Test User",
-    "link": "https://example.com"
-  },
-  "request_id": "idempotent-test-12345",
-  "priority": 1
+  "notification_type": "email",
+  "user_id": "'"$DUMMY_USER_ID"'",
+  "template_code": "welcome_email",
+  "variables": {
+    "name": "Idempotency Test",
+    "link": "https://example.com"
+  },
+  "request_id": "idempotent-test-12345",
+  "priority": 1
 }'
-echo "Sending first request..."
-# curl -X POST "$BASE_URL/notifications/" \
-#   -H "Content-Type: application/json" \
-#   -d "$IDEMPOTENT_PAYLOAD" \
-#   -w "\nHTTP Status: %{http_code}\n" \
-#   -s | python3 -m json.tool || echo "Failed"
-
-echo "Sending duplicate request with same request_id..."
-# curl -X POST "$BASE_URL/notifications/" \
-#   -H "Content-Type: application/json" \
-#   -d "$IDEMPOTENT_PAYLOAD" \
-#   -w "\nHTTP Status: %{http_code}\n" \
-#   -s | python3 -m json.tool || echo "Failed"
-
-# Test 9: Get Notification Status
-echo -e "\n[Test 9] Get Notification Status"
+echo -e "\n[Test 6] Idempotency Test - First Request (should queue)"
 echo "----------------------------------------"
-echo "Note: Replace REQUEST_ID with actual request ID from Test 6 or 7"
-# curl -X GET "$BASE_URL/notifications/email/status/?notification_id=REQUEST_ID" \
-#   -H "Content-Type: application/json" \
-#   -w "\nHTTP Status: %{http_code}\n" \
-#   -s | python3 -m json.tool || echo "Failed"
+run_curl_test "POST" "/notifications/" "$IDEMPOTENT_PAYLOAD" "Test 6a: Idempotency (First Request)" "true"
 
-# Test 10: Update Notification Status
-echo -e "\n[Test 10] Update Notification Status"
+echo -e "\n[Test 6] Idempotency Test - Duplicate Request (should be rejected/success w/ duplicate message)"
 echo "----------------------------------------"
-STATUS_PAYLOAD='{
-  "notification_id": "REQUEST_ID",
-  "status": "delivered",
-  "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
-  "error": null
-}'
-echo "Note: Replace REQUEST_ID with actual request ID"
-# curl -X POST "$BASE_URL/notifications/email/status/" \
-#   -H "Content-Type: application/json" \
-#   -d "$STATUS_PAYLOAD" \
-#   -w "\nHTTP Status: %{http_code}\n" \
-#   -s | python3 -m json.tool || echo "Failed"
+run_curl_test "POST" "/notifications/" "$IDEMPOTENT_PAYLOAD" "Test 6b: Idempotency (Duplicate Request)" "true"
+
+
+# Test 7: Get Notification Status
+echo "Note: Status check requires replacing 'REQUEST_ID' with a real one, e.g., 'idempotent-test-12345'"
+DUMMY_REQUEST_ID="idempotent-test-12345"
+run_curl_test "GET" "/notifications/email/status/?notification_id=$DUMMY_REQUEST_ID" "" "Test 7: Get Notification Status" "true"
 
 echo -e "\n============================================================"
-echo "  Test Suite Complete"
+echo "  Test Suite Complete. Remember to replace DUMMY_USER_ID."
 echo "============================================================"
-

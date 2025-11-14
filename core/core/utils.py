@@ -80,15 +80,16 @@ class CustomResponseMixin:
     # Add other methods (update, destroy) as needed, but for a microservice,
     # we'll focus on the core read/write operations.
 
-    def get_pagination_meta(self, page):
-        """Helper to create the PaginationMeta object."""
+    def get_pagination_meta(page):
+        """Generates the standardized PaginationMeta dictionary."""
+        if not hasattr(page, 'paginator'):
+            return None
+        
         return {
-            "total": page.paginator.count,
-            "limit": page.paginator.per_page,
-            "page": page.number,
+            "current_page": page.number,
             "total_pages": page.paginator.num_pages,
-            "has_next": page.has_next(),
-            "has_previous": page.has_previous(),
+            "total": page.paginator.count,
+            "page_size": page.paginator.paginator.per_page,
         }
     
     def success_response(self, data, message="Operation successful.", http_status=status.HTTP_200_OK):

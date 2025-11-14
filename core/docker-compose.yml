@@ -12,6 +12,10 @@ x-django-base: &django-base
     dockerfile: Dockerfile
   volumes:
     - .:/usr/src/app
+  # 🔑 FIX: Add Python path to enable import of 'core' module in consumers/workers
+  environment:
+    - PYTHONUNBUFFERED=1
+    - PYTHONPATH=/usr/src/app
   depends_on: *django-depends
   networks:
     - notifications

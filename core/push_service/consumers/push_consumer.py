@@ -4,10 +4,10 @@ import pika
 import os
 import django
 from django.conf import settings
-from core.core.rabbitmq import get_rabbitmq_connection
+from core.rabbitmq import get_rabbitmq_connection
 from core.circuit_breaker import circuit_breaker
 from core.retry import retry_with_backoff
-from core.core.service_client import get_user_data, get_template_data
+from core.service_client import get_user_data, get_template_data
 
 # Setup Django environment for standalone consumer
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
@@ -133,11 +133,7 @@ class PushConsumer:
             variables = message.get('variables', {})
             
             # 1. Fetch user data (synchronous REST call with circuit breaker)
-            @retry_with_backoff(retries=3, backoff_in_seconds=1, max_backoff=10)
-            def fetch_user():
-                return get_user_data(user_id)
-            
-            user_data = fetch_user()
+            user_data = get_user_data(user_id)
             if not user_data or not user_data.get('success'):
                 raise Exception(f"Failed to fetch user data for {user_id}")
             
@@ -149,11 +145,7 @@ class PushConsumer:
                 raise Exception(f"User {user_id} has no push token")
             
             # 2. Fetch template (synchronous REST call with circuit breaker)
-            @retry_with_backoff(retries=3, backoff_in_seconds=1, max_backoff=10)
-            def fetch_template():
-                return get_template_data(template_code, language=user_language)
-            
-            template_data = fetch_template()
+            template_data = get_template_data(template_code, language=user_language)
             if not template_data or not template_data.get('success'):
                 raise Exception(f"Failed to fetch template {template_code}")
             
